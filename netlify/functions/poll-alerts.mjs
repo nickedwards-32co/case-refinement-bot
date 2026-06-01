@@ -14,6 +14,12 @@ import { makeSlackClient, findUnprocessedAlerts, addReaction } from "../../src/s
 
 const ALERT_CHANNEL_ID = process.env.SLACK_ALERT_CHANNEL_ID || "C07GGGC5YNM";
 
+// How far back to scan Slack each tick. 360 min (6h) is plenty for
+// normal operation -- the bot polls every 15 min and the reaction-based
+// skip stops anything from being re-processed. Override LOOKBACK_MINUTES
+// for one-off testing if you want to reach back further.
+const LOOKBACK_MINUTES = Number(process.env.LOOKBACK_MINUTES || 360);
+
 export default async (req) => {
   console.log("[poll-alerts] tick", new Date().toISOString());
 
@@ -27,7 +33,7 @@ export default async (req) => {
 
   let alerts;
   try {
-    alerts = await findUnprocessedAlerts(slack, ALERT_CHANNEL_ID, 90);
+    alerts = await findUnprocessedAlerts(slack, ALERT_CHANNEL_ID, LOOKBACK_MINUTES);
   } catch (err) {
     console.error("[poll-alerts] Slack history fetch failed:", err.message);
     return new Response(err.message, { status: 500 });
