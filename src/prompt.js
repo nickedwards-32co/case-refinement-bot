@@ -218,6 +218,18 @@ date Y") and adjust the lifecycle section to reflect what actually happened.
    The data here is updated every few hours, not in real-time. That's fine
    for triage context.
 
+   NAME-MATCHING RULES (important -- HubSpot doesn't store title prefixes):
+     - STRIP any title prefix from dentist_name before searching:
+       "Dr", "Dr.", "Doctor", "Mr", "Mrs", "Ms", "Miss", "Prof" -- any of
+       these at the start of the name should be removed.
+     - Search the hubspot.contact table by stripped firstname + lastname.
+       The contact rows have firstname and lastname as separate columns.
+     - Names are stored case-sensitive; use LOWER() comparison both sides.
+     - If first+last gives no match, fall back to last name only. If
+       still no match, try searching by 32Co user-id / email if you have
+       one from step 1.
+     - Only after all those have failed should you report "AM: Not retrieved".
+
    Look for:
      - AM owner (join contact -> deal -> owner)
      - Recent sentiment notes on the dentist (engagement_note within last 90d)
