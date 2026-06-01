@@ -80,10 +80,12 @@ export default async (req) => {
       await postThreadReply(slack, channel, alertTs, fallback);
     }
 
-    // Swap reactions.
+    // Swap reactions. 🤖 = bot has posted (the clinical team uses ✅ for
+    // their own resolution workflow, so we use a different emoji to avoid
+    // interfering with it).
     try {
       await removeReaction(slack, channel, alertTs, "eyes");
-      await addReaction(slack, channel, alertTs, "white_check_mark");
+      await addReaction(slack, channel, alertTs, "robot_face");
     } catch (err) {
       console.warn("[triage-bg] reaction swap failed:", err.message);
     }
