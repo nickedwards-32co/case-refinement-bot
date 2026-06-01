@@ -154,6 +154,13 @@ export function markdownToSlackMrkdwn(text) {
   //    a visible separator.
   out = out.replace(/^---\s*$/gm, "———");
 
+  // 4. Bullets. Slack mrkdwn does NOT auto-render `- item` as a bullet
+  //    -- it leaves the dash visible as text. Convert leading `- ` (or
+  //    `* `) at the start of a line into a real Unicode bullet `• ` so
+  //    Slack renders something that looks like a list. Indented sub-
+  //    bullets get nested-friendly indentation.
+  out = out.replace(/^(\s*)[-*] /gm, "$1• ");
+
   return out;
 }
 
