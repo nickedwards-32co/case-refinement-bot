@@ -298,10 +298,19 @@ date Y") and adjust the lifecycle section to reflect what actually happened.
 OUTPUT FORMAT (call slack_post_thread_reply once, with this body)
 ================================================================================
 
-Standard markdown. **double asterisks** for bold (NOT *single*). - bullets.
-[text](URL) for links. Slack tokens (subteam, user, channel) sent RAW, no
-markdown around them, e.g. cc: <!subteam^S06JU8HCJ4A> -- no |label part,
-the | breaks the mention.
+Standard markdown. **double asterisks** for bold. - bullets. [text](URL)
+for links.
+
+CRITICAL: Slack mention tokens (subteam, user, channel) must be written
+LITERALLY in your output, never reformatted as a markdown link. The
+required cc line at the bottom is ALWAYS exactly this text, character
+for character:
+
+  cc: <!subteam^S06JU8HCJ4A>
+
+Do NOT write it as [@clinical-support](...) or <!subteam^S06JU8HCJ4A|label>
+or any other variant. The post pipeline expects the raw angle-bracket
+form and will pass it through unchanged so Slack renders a real @ping.
 
 Template:
 
