@@ -208,35 +208,65 @@ date Y") and adjust the lifecycle section to reflect what actually happened.
 
 3. HubSpot data (via Metabase, schema co-7465a.hubspot.*).
 
-   Useful tables:
-     - hubspot.contact          dentist record (filter by email or hs_object_id)
-     - hubspot.deal             linked via hubspot.deal_contact
-     - hubspot.owner            AM owner lookup (deal.hubspot_owner_id -> owner.id)
-     - hubspot.engagement_note  notes -- search for "discount", "goodwill", refund text
-     - hubspot.engagement_email/call/meeting  prior outreach context
+   IMPORTANT: column-naming convention. The Fivetran sync prefixes most
+   HubSpot contact and deal property columns with "property_". So the
+   firstname column is \`property_firstname\` (not \`firstname\`). Always
+   prefix unless you've verified the column exists unprefixed.
 
-   The data here is updated every few hours, not in real-time. That's fine
-   for triage context.
+   Key columns by table:
 
-   NAME-MATCHING RULES (important -- HubSpot doesn't store title prefixes):
+   hubspot.contact
+     id                                Contact row PK (HubSpot's hs_object_id)
+     property_firstname                Dentist's first name
+     property_lastname                 Dentist's last name
+     property_full_name                Sometimes populated; not reliable
+     property_email                    Primary email
+     property_hubspot_owner_id         FK into hubspot.owner (this is the AM)
+     property_dentist_name             Sometimes populated; not reliable
+
+   hubspot.owner (the AM lookup -- NO \`property_\` prefix on this table)
+     owner_id                          PK; matches contact.property_hubspot_owner_id
+     first_name, last_name             AM's display name
+     email                             AM's email
+     is_active                         Whether the AM is still active
+
+   hubspot.deal
+     deal_id                           Deal row PK
+     owner_id                          AM on the deal
+     property_dealname, property_dealtype, etc
+
+   hubspot.engagement_note  notes -- search for "discount", "goodwill", refund text
+   hubspot.engagement_email/call/meeting  prior outreach context
+
+   Data is refreshed every few hours, not real-time. Fine for triage context.
+
+   NAME-MATCHING RULES (HubSpot doesn't store title prefixes):
      - STRIP any title prefix from dentist_name before searching:
        "Dr", "Dr.", "Doctor", "Mr", "Mrs", "Ms", "Miss", "Prof" -- any of
        these at the start of the name should be removed.
-     - Search the hubspot.contact table by stripped firstname + lastname.
-       The contact rows have firstname and lastname as separate columns.
-     - Names are stored case-sensitive; use LOWER() comparison both sides.
-     - If first+last gives no match, fall back to last name only. If
-       still no match, try searching by 32Co user-id / email if you have
-       one from step 1.
+     - Names are stored case-sensitive in HubSpot; always use LOWER()
+       comparison on both sides.
+     - If first+last gives no match, fall back to last name only.
      - Only after all those have failed should you report "AM: Not retrieved".
 
+   Sample query (dentist contact + AM in one round trip):
+
+     SELECT c.id AS contact_id,
+            c.property_firstname, c.property_lastname, c.property_email,
+            c.property_hubspot_owner_id,
+            o.first_name AS am_first_name, o.last_name AS am_last_name, o.email AS am_email
+     FROM \`co-7465a.hubspot.contact\` c
+     LEFT JOIN \`co-7465a.hubspot.owner\` o
+            ON o.owner_id = c.property_hubspot_owner_id
+     WHERE LOWER(c.property_firstname) = LOWER('{stripped_first_name}')
+       AND LOWER(c.property_lastname) = LOWER('{stripped_last_name}')
+     LIMIT 5;
+
    Look for:
-     - AM owner (join contact -> deal -> owner)
+     - AM owner (the join above)
      - Recent sentiment notes on the dentist (engagement_note within last 90d)
      - Prior goodwill / discount / refund history (notes mentioning these keywords)
      - VIP / high-value flag if any custom property has one
-     - Use the dentist's id from step 1 / 2 to find the contact; HubSpot
-       contacts often have the 32Co user id stored on a custom property.
 
 4. Slack search (patient name AND dentist name as separate queries):
    - in:#admin-case-message
