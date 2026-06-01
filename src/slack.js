@@ -58,3 +58,116 @@ export async function findUnprocessedAlerts(client, channelId, lookbackMinutes =
 
   return alerts;
 }
+
+/**
+ * Joins all the text in a Slack message: top-level `text` field plus the
+ * text/fallback of any attachments and blocks. The alert bot posts most
+ * of its detail inside attachments rather than the message body.
+ */
+export function collectMessageText(msg) {
+  const parts = [];
+
+  if (msg.text) parts.push(msg.text);
+
+  for (const att of msg.attachments || []) {
+    if (att.fallback) parts.push(att.fallback);
+    if (att.pretext) parts.push(att.pretext);
+    if (att.text) parts.push(att.text);
+    if (att.title) parts.push(att.title);
+    for (const field of att.fields || []) {
+      parts.push(`${field.title || ""}: ${field.value || ""}`);
+    }
+  }
+
+  for (const block of msg.blocks || []) {
+    parts.push(extractBlockText(block));
+  }
+
+  return parts.filter(Boolean).join("\n");
+}
+
+function extractBlockText(block) {
+  if (!block) return "";
+  if (block.type === "section" && block.text) return block.text.text || "";
+  if (block.type === "header" && block.text) return block.text.text || "";
+  if (block.type === "context") {
+    return (block.elements || []).map((e) => e.text || "").join(" ");
+  }
+  if (block.type === "rich_text") {
+    return JSON.stringify(block.elements || []);
+  }
+  return "";
+}
+
+export async function addReaction(client, channel, ts, name) {
+  try {
+    await client.reactions.add({ channel, timestamp: ts, name });
+  } catch (err) {
+    // If the reaction already exists, ignore.
+    if (err?.data?.error !== "already_reacted") throw err;
+  }
+}
+
+export async function removeReaction(client, channel, ts, name) {
+  try {
+    await client.reactions.remove({ channel, timestamp: ts, name });
+  } catch (err) {
+    if (err?.data?.error !== "no_reaction") throw err;
+  }
+}
+
+export async function postThreadReply(client, channel, threadTs, text) {
+  return await client.chat.postMessage({
+    channel,
+    thread_ts: threadTs,
+    text: markdownToSlackMrkdwn(text),
+    mrkdwn: true,
+  });
+}
+
+/**
+ * Convert standard markdown (what Claude was instructed to produce) into
+ * Slack's native mrkdwn. Slack's mrkdwn is NOT the same as CommonMark:
+ *   - bold:    `*text*`           (Slack)   vs  `**text**`        (md)
+ *   - link:    `<URL|text>`       (Slack)   vs  `[text](URL)`     (md)
+ *   - italic:  `_text_`           (Slack)   vs  `*text*` / `_text_` (md)
+ * Bullets (`- `), inline code (`` ` ``), and code blocks (``` ```) are the
+ * same in both, so we leave them alone.
+ *
+ * Special handling: anything already wrapped in `<...>` is a Slack token
+ * (subteam mention, user mention, channel ref) and must pass through
+ * untouched -- our regexes are written to avoid matching them.
+ */
+export function markdownToSlackMrkdwn(text) {
+  let out = text;
+
+  // 1. Links: [text](url) -> <url|text>. Do this BEFORE bold so the
+  //    inner contents don't get mangled.
+  out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, "<$2|$1>");
+
+  // 2. Bold: **text** -> *text*. Use a non-greedy match. Avoid eating
+  //    `**` that's adjacent to another asterisk (rare in practice).
+  out = out.replace(/\*\*(.+?)\*\*/g, "*$1*");
+
+  // 3. Horizontal rule lines (`---` on their own line) are not native
+  //    Slack syntax. Replace with an em-dash divider so they render as
+  //    a visible separator.
+  out = out.replace(/^---\s*$/gm, "———");
+
+  return out;
+}
+
+/**
+ * Search messages across channels via Slack's search.messages API.
+ * Used by Claude when it wants prior context on a dentist or patient.
+ */
+export async function searchMessages(client, query) {
+  const result = await client.search.messages({ query, count: 20, sort: "timestamp" });
+  return (result.messages?.matches || []).map((m) => ({
+    channel: m.channel?.name || m.channel?.id,
+    user: m.username || m.user,
+    ts: m.ts,
+    text: m.text,
+    permalink: m.permalink,
+  }));
+}
