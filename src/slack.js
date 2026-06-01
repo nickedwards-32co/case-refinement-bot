@@ -4,7 +4,10 @@
 
 import { WebClient } from "@slack/web-api";
 
-const PROCESSED_REACTIONS = ["eyes", "white_check_mark"];
+// `eyes` (👀) = claimed, `robot_face` (🤖) = posted by the bot.
+// We use robot_face for done because the clinical team uses `white_check_mark`
+// (✅) for their own resolution workflow and we don't want to step on it.
+const PROCESSED_REACTIONS = ["eyes", "robot_face"];
 // "Case Refinement Alert" is what the alert bot starts each message with.
 // We match loosely (case-insensitive, allowing for emoji prefixes etc).
 const ALERT_HEADER_REGEX = /case refinement alert/i;
@@ -54,86 +57,4 @@ export async function findUnprocessedAlerts(client, channelId, lookbackMinutes =
   }
 
   return alerts;
-}
-
-/**
- * Joins all the text in a Slack message: top-level `text` field plus the
- * text/fallback of any attachments and blocks. The alert bot posts most
- * of its detail inside attachments rather than the message body.
- */
-export function collectMessageText(msg) {
-  const parts = [];
-
-  if (msg.text) parts.push(msg.text);
-
-  for (const att of msg.attachments || []) {
-    if (att.fallback) parts.push(att.fallback);
-    if (att.pretext) parts.push(att.pretext);
-    if (att.text) parts.push(att.text);
-    if (att.title) parts.push(att.title);
-    for (const field of att.fields || []) {
-      parts.push(`${field.title || ""}: ${field.value || ""}`);
-    }
-  }
-
-  for (const block of msg.blocks || []) {
-    parts.push(extractBlockText(block));
-  }
-
-  return parts.filter(Boolean).join("\n");
-}
-
-function extractBlockText(block) {
-  if (!block) return "";
-  if (block.type === "section" && block.text) return block.text.text || "";
-  if (block.type === "header" && block.text) return block.text.text || "";
-  if (block.type === "context") {
-    return (block.elements || []).map((e) => e.text || "").join(" ");
-  }
-  if (block.type === "rich_text") {
-    return JSON.stringify(block.elements || []);
-  }
-  return "";
-}
-
-export async function addReaction(client, channel, ts, name) {
-  try {
-    await client.reactions.add({ channel, timestamp: ts, name });
-  } catch (err) {
-    // If the reaction already exists, ignore.
-    if (err?.data?.error !== "already_reacted") throw err;
-  }
-}
-
-export async function removeReaction(client, channel, ts, name) {
-  try {
-    await client.reactions.remove({ channel, timestamp: ts, name });
-  } catch (err) {
-    if (err?.data?.error !== "no_reaction") throw err;
-  }
-}
-
-export async function postThreadReply(client, channel, threadTs, text) {
-  return await client.chat.postMessage({
-    channel,
-    thread_ts: threadTs,
-    text,
-    // Letting Slack auto-format (mrkdwn) so [text](url) and **bold** convert.
-    mrkdwn: true,
-  });
-}
-
-/**
- * Search messages across channels via Slack's search.messages API.
- * Used by Claude when it wants prior context on a dentist or patient.
- */
-export async function searchMessages(client, query) {
-  const result = await client.search.messages({ query, count: 20, sort: "timestamp" });
-  return (result.messages?.matches || []).map((m) => ({
-    channel: m.channel?.name || m.channel?.id,
-    user: m.username || m.user,
-    ts: m.ts,
-    text: m.text,
-    permalink: m.permalink,
-  }));
 }
