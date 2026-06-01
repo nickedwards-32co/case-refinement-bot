@@ -1,0 +1,23 @@
+# Netlify configuration for the Case Refinement triage bot.
+#
+# Two functions in this project:
+# - `poll-alerts`        runs on a 15-minute schedule. Fast: just polls
+#                        Slack for new alerts and dispatches a background
+#                        function per alert.
+# - `triage-background`  marked as background by the `-background` suffix
+#                        in its filename. Up to 15 minutes runtime. Does
+#                        the actual Metabase + Claude + Slack work.
+
+[build]
+  functions = "netlify/functions"
+  publish    = "public"
+
+# Schedule expressed in standard cron. The schedule runs in UTC.
+# Every 15 minutes, every day. We don't currently bother throttling
+# overnight -- check + dispatch is essentially free.
+[functions."poll-alerts"]
+  schedule = "*/15 * * * *"
+
+# Use the Node 20 runtime for everything.
+[functions]
+  node_bundler = "esbuild"

@@ -1,0 +1,19 @@
+{
+  "name": "case-refinement-bot",
+  "version": "0.1.0",
+  "description": "Auto-triage bot for #unhappy-dentist-proactive Case Refinement Alerts. Runs on Netlify scheduled functions; posts triage summaries into the alert thread.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "netlify dev",
+    "deploy": "netlify deploy --prod"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@netlify/functions": "^3.0.0",
+    "@slack/web-api": "^7.8.0"
+  }
+}
