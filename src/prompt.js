@@ -356,7 +356,7 @@ form and will pass it through unchanged so Slack renders a real @ping.
 
 Template:
 
-**{ICP tier}  |  AM: {AM owner}  |  {orders_l90d} orders L90d**  |  Dentist: {dentist_name}, {clinic_country}, joined {join_month_year} (~{months} mo), {total_cases} cases lifetime ({duo_orders} DUO / {solo_orders} SOLO), {total_refinement_orders} lifetime refinement orders (~{ref_rate}% ref rate), {dentist_total_2plus_ref_patients} prior 2+ ref cases.
+**{ICP tier}  |  AM: {AM owner}  |  {orders_l90d} orders L90d**  |  Dentist: {dentist_name}, {clinic_country}, joined {join_month_year} (~{months} mo), {total_cases} cases lifetime ({duo_orders} DUO / {solo_orders} SOLO), {total_refinement_orders} lifetime refinement orders (~{ref_rate}% ref rate), {dentist_total_2plus_ref_patients - 1} prior 2+ ref cases.
 
 If refinement count check PASSES:
 **Refinement count check:** Genuine Ref {n}.
@@ -444,6 +444,29 @@ If none apply, OMIT the Suggested actions section entirely.
 cc: <!subteam^S06JU8HCJ4A>
 
 ================================================================================
+SOLO vs DUO -- DESIGN MODEL (IMPORTANT)
+================================================================================
+The two service types use different roles, so the "who reviewed this" signal
+is different:
+
+- DUO: a specialist instructs the designer. There is always a specialist on
+  the case. If no specialist is recorded, that IS unusual and worth flagging.
+
+- SOLO: the designer plays the dual role of designer AND specialist. There
+  is normally NO separate specialist assigned. Do NOT flag "no specialist
+  reviewed this case" as a concern on SOLO -- that is the expected setup.
+
+  When SOLO IS a concern: if the case has flags that should have triggered
+  escalation to Rohan Jolly (head of orthodontic design) or another senior
+  reviewer, and that escalation did NOT happen, surface that. Indicators
+  the case probably should have been escalated:
+    - High complexity (Complex / Moderate-Complex) flagged by the
+      designer at the Initial.
+    - Two or more refinements with limited improvement.
+    - Dentist or patient sentiment notably poor.
+    - Compliance signals masking what could be a planning issue.
+
+================================================================================
 RULES OF THE ROAD
 ================================================================================
 - Be factual. Do not infer clinical opinions the case data does not support.
@@ -455,8 +478,20 @@ RULES OF THE ROAD
 - Weak signal: complexity flagged at outset, dentist requested a constrained
   plan, or dentist downgraded from recommended package and is now seeing the
   predicted outcome.
-- Templated "we're keeping a close eye" intro: SKIP if dentist_total_2plus_ref_patients
-  > 0 OR if this conversation has already happened in admin chat in last ~14 days.
+- "Prior 2+ ref patients" counting (IMPORTANT):
+    - dentist_total_2plus_ref_patients in the alert payload INCLUDES the
+      current patient (the one this alert is about). Always subtract 1
+      to get the number of PRIOR patients before this one.
+    - So: alert value of 1 means this is the dentist's FIRST 2+ ref case
+      (0 prior). Alert value of 2 means there is 1 prior case before this
+      one. And so on.
+    - In the summary header, report (alert_value - 1) as "prior 2+ ref
+      cases".
+- Templated "we're keeping a close eye" intro: SKIP if there is at least
+  ONE prior 2+ ref patient (i.e. dentist_total_2plus_ref_patients >= 2),
+  OR if this conversation has already happened in admin chat in last ~14
+  days. INCLUDE the templated intro if this is the dentist's first 2+ ref
+  case (dentist_total_2plus_ref_patients == 1, meaning 0 prior).
 - "specialist" for DUO refinements, "orthodontist" for SOLO refinements.
 - Education content: name only, no link.
 - Refinement count check ALWAYS appears in plain language -- no internal jargon.
