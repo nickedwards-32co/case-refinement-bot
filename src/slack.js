@@ -165,16 +165,83 @@ export function markdownToSlackMrkdwn(text) {
 }
 
 /**
- * Search messages across channels via Slack's search.messages API.
- * Used by Claude when it wants prior context on a dentist or patient.
+ * Search recent messages in a single channel for ones whose text contains
+ * all of the supplied terms (case-insensitive substring match).
+ *
+ * Why not Slack's search.messages API? It requires a USER token (xoxp-)
+ * with the search:read scope. Bot tokens (xoxb-) cannot search. So we
+ * fall back to conversations.history (which the bot token CAN call) and
+ * do the matching client-side.
+ *
+ * Caveats:
+ *   - The bot must be a member of the channel. Invite via:
+ *       /invite @Case Refinement Triage Bot
+ *   - History pagination is capped at ~3 pages (~600 messages) per call
+ *     to keep latency bounded. If you need to reach further back, raise
+ *     lookbackDays (it filters via the `oldest` API parameter).
+ *
+ * Returns up to 20 matches with constructed permalinks (no extra API
+ * call needed for the link).
  */
-export async function searchMessages(client, query) {
-  const result = await client.search.messages({ query, count: 20, sort: "timestamp" });
-  return (result.messages?.matches || []).map((m) => ({
-    channel: m.channel?.name || m.channel?.id,
-    user: m.username || m.user,
-    ts: m.ts,
-    text: m.text,
-    permalink: m.permalink,
-  }));
+export async function searchMessagesInChannel(client, { channelId, terms, lookbackDays = 30 }) {
+  const oldest = (Date.now() / 1000) - (lookbackDays * 86400);
+  const queryTerms = String(terms || "")
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (queryTerms.length === 0) return [];
+
+  const matches = [];
+  let cursor;
+  let pages = 0;
+  const MAX_PAGES = 3;
+
+  do {
+    let result;
+    try {
+      result = await client.conversations.history({
+        channel: channelId,
+        oldest: String(oldest),
+        limit: 200,
+        cursor,
+      });
+    } catch (err) {
+      // If the bot isn't in this channel, surface the error so Claude
+      // (and the team) knows to invite it rather than silently empty.
+      throw new Error(
+        `conversations.history failed for ${channelId}: ${err?.data?.error || err.message}. ` +
+        `If the error is "not_in_channel" or "channel_not_found", invite the bot to that channel.`
+      );
+    }
+
+    for (const msg of result.messages || []) {
+      const text = collectMessageText(msg);
+      const textLower = text.toLowerCase();
+      if (queryTerms.every((t) => textLower.includes(t))) {
+        matches.push({
+          channel: channelId,
+          user: msg.user || msg.username || null,
+          ts: msg.ts,
+          text: text.length > 500 ? text.slice(0, 500) + "…" : text,
+          permalink: buildPermalink(channelId, msg.ts, msg.thread_ts),
+        });
+        if (matches.length >= 20) return matches;
+      }
+    }
+
+    cursor = result.response_metadata?.next_cursor;
+    pages++;
+  } while (cursor && pages < MAX_PAGES);
+
+  return matches;
+}
+
+function buildPermalink(channelId, ts, threadTs) {
+  const pts = `p${String(ts).replace(".", "")}`;
+  const base = `https://frontiercoworkspace.slack.com/archives/${channelId}/${pts}`;
+  if (threadTs && threadTs !== ts) {
+    return `${base}?thread_ts=${threadTs}&cid=${channelId}`;
+  }
+  return base;
 }

@@ -23,7 +23,14 @@ TOOLS AVAILABLE
   Use for co-7465a.mongoprod.*, co-7465a.metabase_models.*, co-7465a.hubspot.*.
 - metabase_question(card_id, parameters): saved Metabase question. The Mongo
   Submissions data lives behind card_id=5196 with a patient_id parameter.
-- slack_search_messages(query): Slack search.messages. Use in:#channel-name to scope.
+- slack_search_messages(channel_id, terms, lookback_days=30): search recent
+  messages in ONE channel. All space-separated terms must appear in the
+  message text (case-insensitive substring match). Call once per channel.
+  Channel IDs:
+    C0564R9K9GV  #admin-case-message
+    C07AP37AGQK  #design-support
+    C07ECUS4VEV  #support-excellence
+    C07GGGC5YNM  #unhappy-dentist-proactive
 - slack_post_thread_reply(text): post your final summary in the alert thread.
   Call this exactly once, last, when your summary is ready. Standard markdown.
 
@@ -268,17 +275,21 @@ date Y") and adjust the lifecycle section to reflect what actually happened.
      - Prior goodwill / discount / refund history (notes mentioning these keywords)
      - VIP / high-value flag if any custom property has one
 
-4. Slack search (patient name AND dentist name as separate queries):
-   - in:#admin-case-message
-   - in:#design-support
-   - in:#support-excellence
-   - in:#unhappy-dentist-proactive
-   Up to 5 useful snippets with permalinks. Prioritise dentist quotes about
-   compliance, retainer failures, patient complaints; specialist warnings;
-   any prior clinical-oversight escalation; prior goodwill discussions.
-   In particular, look for prior #design-support escalations on this
-   specific patient -- anchor any oversight discussion to it rather than
-   starting a new one.
+4. Slack search. Call slack_search_messages ONCE PER CHANNEL with the
+   patient's full name and / or the dentist's full name as terms. The
+   four channels we care about, with their IDs:
+
+     C0564R9K9GV  #admin-case-message
+     C07AP37AGQK  #design-support
+     C07ECUS4VEV  #support-excellence
+     C07GGGC5YNM  #unhappy-dentist-proactive
+
+   Up to 5 useful snippets with permalinks across all channels.
+   Prioritise dentist quotes about compliance, retainer failures, patient
+   complaints; specialist warnings; any prior clinical-oversight
+   escalation; prior goodwill discussions. In particular, look for prior
+   #design-support escalations on this specific patient -- anchor any
+   oversight discussion to it rather than starting a new one.
 
    ALSO do a dedicated search in #unhappy-dentist-proactive for:
      - The most recent prior "keeping a close eye" / "fewer than 5%"
@@ -287,6 +298,12 @@ date Y") and adjust the lifecycle section to reflect what actually happened.
      - Other prior alerts on this dentist (impression rejections, EDD
        changes, unsuitable case, plan stage differences, case refinement
        alerts on other patients).
+
+   If slack_search_messages returns an error like "not_in_channel" or
+   "channel_not_found" for a specific channel, surface that channel by
+   name in the Notes section (e.g. "Slack search: bot not in
+   #design-support") rather than failing the whole triage. The bot
+   needs to be invited via /invite to each channel by an admin.
 
 5. Fallback: cases-table structured form fields. Only use when step 1d is
    missing the relevant data. Query:

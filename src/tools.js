@@ -54,19 +54,31 @@ export const TOOL_DEFS = [
   {
     name: "slack_search_messages",
     description:
-      "Search Slack messages across channels using Slack's search.messages API. " +
-      "Use channel:name in the query to constrain (e.g. 'in:#admin-case-message ANNA SMITH'). " +
-      "Returns up to 20 most recent matches with permalinks.",
+      "Search recent Slack messages in ONE channel at a time. Pass a " +
+      "channel_id (Slack ID like C07GGGC5YNM) plus a `terms` string -- " +
+      "every space-separated word in `terms` must appear in the message " +
+      "(case-insensitive substring match). Returns up to 20 most recent " +
+      "matches with constructed permalinks. Default lookback is 30 days; " +
+      "override with `lookback_days`. Call multiple times to cover " +
+      "multiple channels. Channel IDs are in the prompt's Slack section.",
     input_schema: {
       type: "object",
       properties: {
-        query: {
+        channel_id: {
+          type: "string",
+          description: "Slack channel ID, e.g. C07GGGC5YNM.",
+        },
+        terms: {
           type: "string",
           description:
-            "Slack search query. Use `in:#channel-name` to scope by channel.",
+            "Space-separated terms. ALL must appear in the message text.",
+        },
+        lookback_days: {
+          type: "integer",
+          description: "Days of history to scan. Default 30.",
         },
       },
-      required: ["query"],
+      required: ["channel_id", "terms"],
     },
   },
   {
@@ -118,8 +130,12 @@ export async function dispatchTool(block, ctx) {
     }
 
     if (name === "slack_search_messages") {
-      const { searchMessages } = await import("./slack.js");
-      const result = await searchMessages(ctx.slack, input.query);
+      const { searchMessagesInChannel } = await import("./slack.js");
+      const result = await searchMessagesInChannel(ctx.slack, {
+        channelId: input.channel_id,
+        terms: input.terms,
+        lookbackDays: input.lookback_days || 30,
+      });
       return { ok: true, output: result };
     }
 
