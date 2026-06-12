@@ -140,6 +140,19 @@ export async function dispatchTool(block, ctx) {
     }
 
     if (name === "slack_post_thread_reply") {
+      // Hard guard: one and only one summary message per triage.
+      // Prior bug: Claude sometimes split long summaries into multiple
+      // back-to-back tool calls, which created 2-3 separate thread
+      // replies and confused the clinical team. Now any 2nd+ call
+      // returns an error and Claude must end its turn instead.
+      if (ctx.summaryPosted) {
+        return {
+          ok: false,
+          error:
+            "REJECTED: A summary has already been posted in this triage. " +
+            "Do not call slack_post_thread_reply again. End your turn now.",
+        };
+      }
       const { postThreadReply } = await import("./slack.js");
       const posted = await postThreadReply(
         ctx.slack,
@@ -153,6 +166,7 @@ export async function dispatchTool(block, ctx) {
         output: {
           ts: posted.ts,
           permalink: `https://frontiercoworkspace.slack.com/archives/${ctx.channel}/p${String(posted.ts).replace(".", "")}`,
+          note: "Summary posted. End your turn now -- do not call any more tools.",
         },
       };
     }

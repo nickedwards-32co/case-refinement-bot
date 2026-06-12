@@ -535,8 +535,16 @@ WHAT YOU ARE NOT DOING
 ================================================================================
 HOW TO FINISH
 ================================================================================
-Once your summary is ready, call slack_post_thread_reply exactly once with the
-final markdown text. Then end your turn -- do not call any further tools.`;
+Once your summary is ready, call slack_post_thread_reply EXACTLY ONCE with
+the COMPLETE final markdown text, then end your turn.
+
+CRITICAL: The summary MUST be a single message. Do NOT split it into multiple
+slack_post_thread_reply calls. Slack supports up to 40,000 characters per
+message, so length is not the problem. If your summary is running long,
+TIGHTEN the prose -- shorter quotes, fewer bullets, drop low-signal lines --
+but still send one and only one call. The dispatcher will REJECT any second
+call within the same triage. After the post succeeds, end your turn without
+calling any further tools.`;
 
 export function buildUserMessage({ alertText, channelId, alertTs }) {
   return `A new Case Refinement Alert has just fired. Triage it.

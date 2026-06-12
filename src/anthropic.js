@@ -29,7 +29,11 @@ export async function runAgent({
 
     const response = await client.messages.create({
       model,
-      max_tokens: 8000,
+      // Generous room for the final summary message. A long triage with
+      // 3+ refinements + full Notes / Triage / Suggested actions can run
+      // ~6-8k output tokens. Allow well over that so the model never has
+      // to split.
+      max_tokens: 16000,
       system: systemPrompt,
       tools: TOOL_DEFS,
       messages,
