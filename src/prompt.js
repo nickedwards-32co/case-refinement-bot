@@ -295,9 +295,29 @@ date Y") and adjust the lifecycle section to reflect what actually happened.
      - The most recent prior "keeping a close eye" / "fewer than 5%"
        templated message sent to this dentist (on ANY of their patients).
        Capture permalink + patient + date.
-     - Other prior alerts on this dentist (impression rejections, EDD
-       changes, unsuitable case, plan stage differences, case refinement
-       alerts on other patients).
+     - Other prior alerts on this dentist that are CLINICALLY MATERIAL.
+       Only surface alerts of these types:
+         * Prior Case Refinement Alert (other patient hitting 2+ refs)
+         * Plan stage difference alert
+         * Unsuitable case alert
+         * EDD-change alert IF it's clinically related (not admin/logistics)
+         * Prior #design-support escalation about clinical oversight
+       SKIP these alert types entirely -- they are operational / data
+       hygiene noise and add nothing to clinical triage:
+         * Replacement Order Alert (aligner replacement; not a clinical signal)
+         * Impression/Scan Rejection Alert (data quality, not clinical)
+         * Two-cases-same-name / duplicate-patient alerts (data hygiene)
+         * Any sales / onboarding / outreach alerts
+       Rule of thumb: would a Clinical Associate care about this alert
+       when deciding the goodwill / oversight question on the current
+       case? If no, omit it. If yes, surface it with one short clarifier
+       on why it's clinically material.
+
+   When surfacing a prior alert about a DIFFERENT patient of the same
+   dentist, label it clearly so it isn't confused with the current
+   patient, e.g.:
+     "Prior 2+ ref alert on this dentist (different patient,
+     {other_patient_name}, {date}) — [link]."
 
    If slack_search_messages returns an error like "not_in_channel" or
    "channel_not_found" for a specific channel, surface that channel by
